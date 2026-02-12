@@ -1,217 +1,107 @@
-import fitz  # PyMuPDF
-from PIL import Image
-import io
-import base64
-import json
-from typing import List, Dict, Any
+import fitz
 import os
+import re
+from typing import List, Dict
 
 class PDFProcessor:
     def __init__(self):
         pass
     
-    def extract_pages_with_images(self, pdf_path: str) -> List[Dict]:
-        """
-        Extract text and images from PDF - FIXED VERSION
-        """
+    def extract_by_tasks(self, pdf_path: str) -> List[Dict]:
+        """Extract tasks separated by ENDOFTASK"""
         if not os.path.exists(pdf_path):
             raise FileNotFoundError(f"PDF not found: {pdf_path}")
         
-        print(f"📄 Processing PDF: {pdf_path}")
-        
-        try:
-            doc = fitz.open(pdf_path)
-            print(f"✅ PDF opened successfully: {len(doc)} pages")
-        except Exception as e:
-            print(f"❌ Error opening PDF: {e}")
-            return self._create_dummy_pages()
-        
-        pages_data = []
+        doc = fitz.open(pdf_path)
+        all_tasks = []
         
         for page_num in range(len(doc)):
-            try:
-                page = doc[page_num]
-                
-                # Extract text
-                text = page.get_text()
-                if not text.strip():
-                    text = f"Page {page_num + 1} - No text extracted"
-                
-                # Extract images - SIMPLIFIED APPROACH
-                images = self._extract_images_safe(page, page_num)
-                
-                # Extract problems
-                problems = self._extract_problems(text)
-                
-                pages_data.append({
-                    "page_number": page_num + 1,
-                    "text": text,
-                    "images": images,
-                    "problems": problems,
-                    "total_images": len(images)
-                })
-                
-                print(f"  📄 Page {page_num+1}: {len(text)} chars, {len(images)} images")
-                
-            except Exception as e:
-                print(f"  ⚠️  Error on page {page_num+1}: {e}")
-                # Add empty page
-                pages_data.append({
-                    "page_number": page_num + 1,
-                    "text": f"Page {page_num + 1} - Error processing",
-                    "images": [],
-                    "problems": [],
-                    "total_images": 0
-                })
+            page = doc[page_num]
+            text = page.get_text()
+            
+            if not text.strip():
+                continue
+            
+            # Extract tasks using ENDOFTASK separator
+            tasks = self._split_by_endoftask(text, page_num + 1)
+            all_tasks.extend(tasks)
         
         doc.close()
-        
-        if not pages_data:
-            return self._create_dummy_pages()
-        
-        return pages_data
+        return all_tasks
     
-    def _extract_images_safe(self, page, page_num: int) -> List[Dict]:
-        """Safe image extraction with error handling"""
-        images = []
+    def _split_by_endoftask(self, text: str, page_num: int) -> List[Dict]:
+        """Split text by ENDOFTASK markers"""
+        tasks = []
         
-        try:
-            # Method 1: Try get_images() without full=True
-            image_list = page.get_images()
+        # Clean text: remove extra whitespace but keep ENDOFTASK
+        text = re.sub(r'\s+', ' ', text)
+        
+        # Split by ENDOFTASK (case insensitive, with optional spacing)
+        # Keep everything between ENDOFTASK markers
+        chunks = re.split(r'\bENDOFTASK\b', text, flags=re.IGNORECASE)
+        
+        task_counter = 1
+        
+        for chunk in chunks:
+            chunk = chunk.strip()
+            if not chunk or len(chunk) < 20:  # Skip very short chunks
+                continue
             
-            for img_index, img_info in enumerate(image_list):
-                try:
-                    xref = img_info[0]
-                    base_image = page.parent.extract_image(xref)
-                    
-                    if "image" in base_image:
-                        image_bytes = base_image["image"]
-                        
-                        # Create PIL Image
-                        pil_image = Image.open(io.BytesIO(image_bytes))
-                        
-                        # Convert to base64
-                        buffered = io.BytesIO()
-                        pil_image.save(buffered, format="PNG")
-                        image_b64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
-                        
-                        images.append({
-                            "pil_image": pil_image,
-                            "b64": image_b64,
-                            "ext": base_image.get("ext", "png"),
-                            "size": pil_image.size,
-                            "page": page_num,
-                            "index": img_index
-                        })
-                        
-                except Exception as img_e:
-                    print(f"    ⚠️  Image {img_index} error: {img_e}")
-                    continue
+            # Extract task info
+            task_num = self._extract_task_number(chunk)
+            has_steps = self._has_steps(chunk)
+            
+            tasks.append({
+                "id": f"task_{task_num or task_counter}_page_{page_num}",
+                "task_number": task_num or task_counter,
+                "page": page_num,
+                "text": chunk,
+                "has_steps": has_steps,
+                "step_count": self._count_steps(chunk) if has_steps else 0,
+                "is_complete": True  # Always complete with ENDOFTASK separator
+            })
+            task_counter += 1
         
-        except Exception as e:
-            print(f"    ⚠️  Image extraction failed: {e}")
-        
-        return images
+        return tasks
     
-    def _create_dummy_pages(self) -> List[Dict]:
-        """Create dummy pages when PDF processing fails"""
-        print("⚠️  Creating dummy guide pages...")
+    def _extract_task_number(self, text: str) -> int:
+        """Extract task number from text (e.g., '1) ...' or 'Task 1: ...')"""
+        # Look for patterns in first 200 chars
+        first_part = text[:200]
         
-        dummy_pages = [
-            {
-                "page_number": 1,
-                "text": """1) Admin is unable to access Proxy management
-
-## RBP Troubleshooting
-Use this tool to better prevent, diagnose, and fix Role-Based Permissions issues.
-
-Search Criteria
-This tool allows you to search for and compare permission roles and user permissions.
-
-a. As the admin is part of the "Super Admins" group. We dont need to look it up in Permission Groups.
-b. Go to "Manage Role Permissions" from the top search bar and select "System Admin (Full Permissions)"
-c. Click the edit button at the top right.
-d. Click Next on the Basic information tab. On the Add Permissions tab, search for "Proxy Management". This is unchecked which is causing the issue.
-e. To verify, logout and log back in. Now you can see "Proxy Management" in the top search.""",
-                "images": [],
-                "problems": ["Admin cannot access proxy management"],
-                "total_images": 0
-            },
-            {
-                "page_number": 2,
-                "text": """2) User Jacob Smith Cannot Access Learning Administration
-
-a. Type "RBP Troubleshooting" and select the action.
-b. Select the User Group Search tab. Then type the affected user's name (in this case Jacob Smith). Then click the search button. Now we know the group that he is a part of. "New Employees"
-c. Go to "Manage Permission Group" and look for a group named "New Employees"
-d. Click on "New Employees" Group from the list.
-e. Check what roles are assigned to the user in the "Related Permission Roles" tab. It seems to be "Employee Self Service".
-f. Now search "Manage Permission Roles" in the top search.
-g. Now look for the "Employee Self Service" role from the list and click the edit button.
-h. Click next on the Basic information tab and search for "Manage Learning" on the Add Permissions tab. Then, the "Learning admin access permission" checkbox is unchecked; therefore, this is the root cause.
-i. To Verify, click on the profile icon on the top right corner and select Proxy Now from the drop down
-j. Type the affected user's name in the popup, which is Jacob Smith. Select the user from the dropdown and hit Ok.
-k. Now type "Learning Administration" in the top search and you can see it appear.""",
-                "images": [],
-                "problems": ["User Jacob Smith cannot access Learning Administration"],
-                "total_images": 0
-            },
-            {
-                "page_number": 3,
-                "text": """3) A User Cannot See Another User or Population. Sophie Thaler can see April Kennedy in the top searchbar, but other people do not show up.
-
-a. Go to RBP troubleshooting like the Second task (1 to 5) and check what group Sophie Thaler is a part of. Then open that Group in "Manage Permission Groups" to check what Roles are assigned to that group.
-b. It is the Employee Self Service Role. Now go to "Manage Permission Roles" from top search.
-c. Now click the Self Service Role from the list.
-d. Click the assignments tab and then click the Edit button in front of the "New Employees" Access population Group.
-e. Click Next on the Basic Information tab and then again on the Grant access to tab. Now the "Define a Target Population Tab" is set to a filter instead of "Everyone" radiobutton which is the problem.
-f. If it is set to "Everyone", Sophie can now see all the employees. To Verify, click on the profile icon on the top right corner and select Proxy Now from the drop down
-g. Type the affected user's name in the popup, which in this case is Sophie Thaler. Select the user from the dropdown and hit Ok.
-h. Now when you type other people's names, aside from April, in the top search they will show up.""",
-                "images": [],
-                "problems": ["Sophie Thaler cannot see other users"],
-                "total_images": 0
-            }
+        patterns = [
+            r'(\d+)\)',           # 1)
+            r'Task\s+(\d+)',      # Task 1
+            r'Step\s+(\d+)',      # Step 1
+            r'(\d+)\.\s',         # 1.
+            r'Issue\s+(\d+)'      # Issue 1
         ]
         
-        return dummy_pages
+        for pattern in patterns:
+            match = re.search(pattern, first_part, re.IGNORECASE)
+            if match:
+                return int(match.group(1))
+        
+        return 0
     
-    def _extract_problems(self, text: str) -> List[str]:
-        """Extract problem statements from text"""
-        problems = []
+    def _has_steps(self, text: str) -> bool:
+        """Check if task contains steps (a., b., c. or 1., 2., 3.)"""
+        # Check for lettered steps
+        if re.search(r'[a-z][\.\)]\s+', text, re.IGNORECASE):
+            return True
         
-        lines = text.split('\n')
-        for line in lines:
-            line = line.strip()
-            if len(line) > 10:
-                # Look for numbered problems like "1) ..."
-                if line.startswith(('1)', '2)', '3)', '4)', '5)', '6)', '7)', '8)', '9)', '10)')):
-                    problems.append(line)
-                # Look for problem keywords
-                elif any(keyword in line.lower() for keyword in [
-                    'cannot', "can't", 'unable', 'missing', 
-                    'issue', 'problem', 'error', 'troubleshoot'
-                ]):
-                    problems.append(line)
+        # Check for numbered steps (but not task numbers)
+        if re.search(r'(?<!\d\.)\d[\.\)]\s+', text):
+            return True
         
-        return problems[:3]  # Return max 3 problems
+        return False
     
-    def save_page_images(self, pages_data: List[Dict], output_dir: str):
-        """Save extracted images for reference"""
-        os.makedirs(output_dir, exist_ok=True)
+    def _count_steps(self, text: str) -> int:
+        """Count number of steps in task"""
+        # Count lettered steps (a., b., c., etc.)
+        letter_steps = len(re.findall(r'[a-z][\.\)]\s+', text, re.IGNORECASE))
         
-        saved_count = 0
-        for page in pages_data:
-            page_num = page["page_number"]
-            for idx, img_data in enumerate(page["images"]):
-                if "pil_image" in img_data:
-                    filename = f"page_{page_num}_img_{idx}.png"
-                    filepath = os.path.join(output_dir, filename)
-                    try:
-                        img_data["pil_image"].save(filepath)
-                        saved_count += 1
-                    except Exception as e:
-                        print(f"⚠️  Could not save image: {e}")
+        # Count numbered steps (but exclude task numbers like "1)")
+        numbered_steps = len(re.findall(r'(?<!\d\.)\d[\.\)]\s+', text))
         
-        if saved_count > 0:
-            print(f"💾 Saved {saved_count} images to {output_dir}")
+        return max(letter_steps, numbered_steps)

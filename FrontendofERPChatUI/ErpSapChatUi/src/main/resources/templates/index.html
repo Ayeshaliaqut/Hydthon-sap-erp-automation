@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Troubleshooting Assistant | SuccessFactors</title>
+    <style>
+        :root {
+            --sap-blue: #0a6ed1;
+            --sap-bg: #f5f6f7;
+            --sap-card-shadow: 0 0.125rem 0.5rem rgba(0,0,0,0.08);
+            --sap-border: #d9d9d9;
+            --text-main: #32363a;
+            --status-completed: #107e3e;
+            --status-running: #e9730c;
+            --status-failed: #bb0000;
+        }
+
+        body {
+            font-family: "72", Arial, sans-serif;
+            background-color: var(--sap-bg);
+            color: var(--text-main);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        header {
+            width: 100%;
+            background: #fff;
+            padding: 1rem 2rem;
+            border-bottom: 1px solid var(--sap-border);
+            display: flex;
+            align-items: center;
+            box-sizing: border-box;
+            gap: 15px;
+        }
+
+        .sap-logo { height: 24px; }
+        .app-title { font-size: 1.1rem; font-weight: 600; }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+            box-sizing: border-box;
+        }
+
+        .card {
+            background: white;
+            border-radius: 0.5rem;
+            box-shadow: var(--sap-card-shadow);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid #eeeeee;
+        }
+
+        .input-group { display: flex; gap: 10px; }
+
+        input[type="text"] {
+            flex-grow: 1;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--sap-border);
+            border-radius: 0.25rem;
+            font-size: 1rem;
+        }
+
+        button {
+            background-color: var(--sap-blue);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.25rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+
+        .pill {
+            display: inline-flex;
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.85rem;
+            font-weight: bold;
+        }
+        .pill-running { background: #fff4e5; color: var(--status-running); border: 1px solid #ffcc91; }
+        .pill-completed { background: #e7f4e4; color: var(--status-completed); border: 1px solid #b3d6a8; }
+        .pill-failed { background: #ffebee; color: var(--status-failed); border: 1px solid #ef9a9a; }
+
+        .meta-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+
+        .step-item {
+            display: flex;
+            gap: 15px;
+            padding-bottom: 1.5rem;
+            position: relative;
+        }
+
+        .step-item:not(:last-child)::before {
+            content: '';
+            position: absolute;
+            left: 11px;
+            top: 24px;
+            bottom: 0;
+            width: 2px;
+            background: #e5e5e5;
+        }
+
+        .step-icon {
+            width: 24px; height: 24px; border-radius: 50%;
+            background: var(--sap-blue); color: white;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.75rem; z-index: 1; flex-shrink: 0;
+        }
+
+        .hidden { display: none; }
+
+        .dot { width: 8px; height: 8px; background: #107e3e; border-radius: 50%; animation: blink 1.5s infinite; margin-right: 5px; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    </style>
+</head>
+<body>
+
+<header>
+    <img src="https://www.sap.com/dam/application/shared/logos/sap-logo-svg.svg" alt="SAP" class="sap-logo">
+    <div class="app-title">SuccessFactors Troubleshooting Assistant</div>
+</header>
+
+<div class="container">
+    <div class="card">
+        <h2 style="margin-top:0">Describe your issue</h2>
+        <div class="input-group">
+            <input type="text" id="issueInput" placeholder="User Jacob Smith cannot access Learning..." />
+            <button id="startBtn">Start Assistant</button>
+        </div>
+    </div>
+
+    <div id="resultsCard" class="card hidden">
+        <div class="meta-bar">
+            <div><strong>Run ID:</strong> <span id="runIdDisplay">-</span></div>
+            <div id="statusPill" class="pill">PENDING</div>
+        </div>
+        <div id="stepCount" style="font-size:0.85rem; color:#666; margin-bottom:1rem;">Steps: 0</div>
+        <div id="stepsList"></div>
+        <div id="pollingIndicator" class="hidden" style="display:flex; align-items:center; font-size:0.8rem; color:#107e3e; margin-top:10px;">
+            <div class="dot"></div> Live updates active
+        </div>
+        <button id="resetBtn" class="hidden" style="margin-top:20px; background:#6a6d70;">New Issue</button>
+    </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>

@@ -7,91 +7,91 @@ class Agent:
         self.pdf = pdf_processor
         self.vision = vision_analyzer
         self.rag = rag_engine
-        self.guide = []
+        self.tasks = []
     
     def load_guide(self, pdf_path):
-        """Load guide PDF"""
-        self.guide = self.pdf.extract_pages_with_images(pdf_path)  # FIXED METHOD NAME
+        """Load guide with ENDOFTASK separators"""
+        self.tasks = self.pdf.extract_by_tasks(pdf_path)
         self.rag.create_collection()
-        self.rag.index_guide_pages(self.guide)
+        self.rag.index_tasks(self.tasks)
+        print(f"Loaded {len(self.tasks)} tasks")
     
     def troubleshoot(self, screenshot, issue: str) -> dict:
-        """MAIN: screenshot + issue -> JSON with steps from MULTIPLE pages"""
-        
-        # 1. Analyze screenshot
+        """Find solution in tasks"""
+        # Analyze screenshot
         screen_data = self.vision.analyze_screenshot(screenshot)
         
-        # 2. Search guide - get MORE results
+        # Search tasks
         query = f"{issue} {screen_data.get('screen_type', '')}"
-        results = self.rag.search(query, n_results=5)  # Get 5 pages
+        results = self.rag.search_tasks(query, n_results=3)
         
-        # 3. Extract steps from ALL relevant pages
+        # Extract steps from matching tasks
         all_steps = []
-        pages_used = []
+        tasks_used = []
         
         for result in results:
-            page_num = result["page"]
-            guide_text = result["text"]
-            
-            # Extract steps from this page
-            steps = self._extract_steps(guide_text)
-            
-            if steps:  # Only add if we found steps
-                all_steps.extend(steps)
-                pages_used.append(page_num)
-            
-            # Stop if we have enough steps
-            if len(all_steps) >= 15:
-                break
+            if result["has_steps"]:
+                steps = self._extract_steps_from_task(result["text"])
+                
+                if steps:
+                    all_steps.extend(steps)
+                    tasks_used.append({
+                        "task": result["task_number"],
+                        "page": result["page"],
+                        "steps_found": len(steps),
+                        "task_id": result["task_id"]
+                    })
         
-        # 4. Remove duplicate steps (by first 50 chars)
-        unique_steps = self._remove_duplicate_steps(all_steps)
-        
-        # 5. Build response
         return {
             "issue": issue,
             "timestamp": datetime.now().isoformat(),
             "screen_analysis": screen_data,
-            "pages_used": pages_used[:3],  # Show which pages we used
-            "total_steps": len(unique_steps),
-            "steps": unique_steps[:20],  # Max 20 steps
-            "status": "success" if unique_steps else "no_steps_found"
+            "tasks_used": tasks_used,
+            "total_steps": len(all_steps),
+            "steps": all_steps[:15],  # Limit steps
+            "status": "success" if all_steps else "no_steps_found"
         }
     
-    def _extract_steps(self, text: str):
-        """Extract steps a. through z. from text"""
+    def _extract_steps_from_task(self, task_text: str):
+        """Extract steps from task text"""
         steps = []
         
-        # Pattern: letter + dot + content until next letter+dot or end
-        pattern = r'([a-z])[\.\)]\s*(.+?)(?=(?:[a-z][\.\)]|\Z))'
-        matches = re.findall(pattern, text, re.DOTALL | re.IGNORECASE)
+        # Look for lettered steps (a., b., c., etc.)
+        pattern = r'([a-z])[\.\)]\s*(.+?)(?=(?:[a-z][\.\)]|\d+[\.\)]|$))'
+        matches = re.findall(pattern, task_text, re.DOTALL | re.IGNORECASE)
         
         for letter, content in matches:
-            # Clean the step
             content = content.strip()
-            content = re.sub(r'\s+', ' ', content)  # Fix spacing
-            content = content.replace('\n', ' ')    # Remove line breaks
+            content = re.sub(r'\s+', ' ', content)
             
-            if content and len(content) > 10:  # Only meaningful steps
+            if content and len(content) > 10:
                 steps.append({
                     "step": letter.upper(),
-                    "instruction": content[:300],
-                    "source_page": "extracted"
+                    "instruction": content[:250],
+                    "type": self._get_step_type(content)
                 })
         
         return steps
     
-    def _remove_duplicate_steps(self, steps):
-        """Remove duplicate steps"""
-        seen = set()
-        unique_steps = []
+    def _get_step_type(self, instruction: str) -> str:
+        """Categorize step type"""
+        instruction = instruction.lower()
         
-        for step in steps:
-            # Create a key from first 50 chars of instruction
-            key = step["instruction"][:50].lower().strip()
-            
-            if key not in seen:
-                seen.add(key)
-                unique_steps.append(step)
+        if any(word in instruction for word in ['go to', 'navigate', 'open']):
+            return "navigation"
+        elif any(word in instruction for word in ['click', 'select', 'press']):
+            return "click"
+        elif any(word in instruction for word in ['search', 'find', 'look']):
+            return "search"
+        elif any(word in instruction for word in ['check', 'verify', 'ensure']):
+            return "verification"
+        elif any(word in instruction for word in ['type', 'enter', 'input']):
+            return "input"
+        elif any(word in instruction for word in ['save', 'apply', 'submit']):
+            return "save"
+        elif any(word in instruction for word in ['logout', 'login', 'proxy']):
+            return "auth"
+        else:
+            return "action"
         
-        return unique_steps
+    
