@@ -1,7 +1,8 @@
-google-generativeai>=0.3.0
-PyMuPDF>=1.23.0
-Pillow>=10.0.0
-chromadb>=0.4.0
-sentence-transformers>=2.2.0
-python-dotenv>=1.0.0
-numpy>=1.24.0
+# Core dependencies
+google-genai>=1.0.0          # New Gemini SDK
+PyMuPDF>=1.23.0              # PDF processing
+Pillow>=10.0.0               # Image handling
+chromadb>=0.4.0              # Vector database
+sentence-transformers>=2.2.0 # Embeddings (if needed)
+python-dotenv>=1.0.0         # Environment variables
+numpy>=1.24.0                # Numerical operations

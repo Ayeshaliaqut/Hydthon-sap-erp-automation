@@ -1,0 +1,65 @@
+{
+  "issue": "\u007fAfter changing the language on a Profile, the changes revert after saving.",
+  "timestamp": "2026-02-19T17:01:00.895709",
+  "mode": "text_only",
+  "status": "success",
+  "total_tasks_found": 5,
+  "relevant_tasks_found": 1,
+  "tasks_used": [
+    {
+      "task_number": "6",
+      "title": "After changing the language on a Profile, the changes revert after saving.",
+      "step_count": 5,
+      "relevance": 0.901
+    }
+  ],
+  "total_steps": 5,
+  "steps": [
+    {
+      "step": "A",
+      "instruction": "Search \u201cManage Business Configuration\u201d in the top search bar and select",
+      "type": "navigation",
+      "task_number": "6",
+      "task_title": "After changing the language on a Profile, the changes revert after saving.",
+      "relevance": 0.901
+    },
+    {
+      "step": "B",
+      "instruction": "Click the \u201cTake Action\u201d button on the top right and Select Make Correction from",
+      "type": "click",
+      "task_number": "6",
+      "task_title": "After changing the language on a Profile, the changes revert after saving.",
+      "relevance": 0.901
+    },
+    {
+      "step": "C",
+      "instruction": "Scroll down to the Trigger Rules section.",
+      "type": "action",
+      "task_number": "6",
+      "task_title": "After changing the language on a Profile, the changes revert after saving.",
+      "relevance": 0.901
+    },
+    {
+      "step": "D",
+      "instruction": "The Enabled field to is set to Yes on EC Override Change rule. This is causing",
+      "type": "action",
+      "task_number": "6",
+      "task_title": "After changing the language on a Profile, the changes revert after saving.",
+      "relevance": 0.901
+    },
+    {
+      "step": "E",
+      "instruction": "Now the language will not revert back when being changed on a profile which",
+      "type": "action",
+      "task_number": "6",
+      "task_title": "After changing the language on a Profile, the changes revert after saving.",
+      "relevance": 0.901
+    }
+  ],
+  "message": "Found 5 steps from Task 6",
+  "engine_version": "1.0",
+  "config": {
+    "relevance_threshold": 0.7,
+    "mode": "text_only"
+  }
+}
